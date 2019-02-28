@@ -75,13 +75,11 @@ if __name__ == '__main__':
     else:
         args.device = 'cpu'
     torch.manual_seed(args.seed)
-    batch_size = args.batch_size
     train_data = SortOfClevr('./data')
     test_data = SortOfClevr('./data', False)
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True)
-
-    model = RelationalNet(batch_size).to(args.device)
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.batch_size, shuffle=True)
+    model = RelationalNet().to(args.device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     loss_function = nn.NLLLoss()
     for epoch in range(1, args.epochs + 1):

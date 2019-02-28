@@ -28,7 +28,7 @@ def translate(question, answer):
 
 
 if __name__ == '__main__':
-    net = RelationalNet(64)
+    net = RelationalNet()
     net.load_state_dict(torch.load('./model/model.pth', 'cpu'))
     net.eval()
     image, rel_questions, rel_answers, norel_questions, norel_answers = build_dataset(1)

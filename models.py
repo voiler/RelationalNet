@@ -19,19 +19,11 @@ class Convolution(nn.Module):
         self.conv4 = nn.Conv2d(24, 24, 3, stride=2, padding=1)
         self.bn4 = nn.BatchNorm2d(24)
 
-    def forward(self, img):
-        x = self.conv1(img)
-        x = F.relu(x)
-        x = self.bn1(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = self.bn2(x)
-        x = self.conv3(x)
-        x = F.relu(x)
-        x = self.bn3(x)
-        x = self.conv4(x)
-        x = F.relu(x)
-        x = self.bn4(x)
+    def forward(self, x):
+        x = self.bn1(F.relu(self.conv1(x)))
+        x = self.bn2(F.relu(self.conv2(x)))
+        x = self.bn3(F.relu(self.conv3(x)))
+        x = self.bn4(F.relu(self.conv4(x)))
         return x
 
 
@@ -40,18 +32,16 @@ class ObjectPair(nn.Module):
     make object pair
     """
 
-    def __init__(self, batch_size):
+    def __init__(self):
         super().__init__()
-        coord_tensor = torch.zeros((batch_size, 25, 2), dtype=torch.float)
+        coord_tensor = torch.zeros((1, 25, 2), dtype=torch.float)
         for i in range(25):
             coord_tensor[:, i, :] = torch.tensor([(i // 5 - 2) / 2., (i % 5 - 2) / 2.], dtype=torch.float)
         self.register_buffer('coord_tensor', coord_tensor)
 
     def forward(self, x, qst):
         batch_size, n_channels, feature_dim, _ = x.shape
-        coord_tensor = self.coord_tensor
-        if batch_size != self.coord_tensor.shape[0]:
-            coord_tensor = self.coord_tensor[:batch_size, :, :]
+        coord_tensor = self.coord_tensor.repeat(batch_size, 1, 1)
         x = x.view(batch_size, n_channels, feature_dim ** 2).permute(0, 2, 1)
         x = torch.cat([x, coord_tensor], 2)
         qst = qst.reshape(batch_size, 1, 1, 11)
@@ -106,10 +96,10 @@ class FPhi(nn.Module):
 
 
 class RelationalNet(nn.Module):
-    def __init__(self, batch_size):
+    def __init__(self):
         super().__init__()
         self.conv = Convolution()
-        self.obj_pair = ObjectPair(batch_size)
+        self.obj_pair = ObjectPair()
         self.g_theta = GTheta()
         self.f_phi = FPhi()
 

@@ -4,32 +4,32 @@ import torch
 import numpy as np
 import torch.utils.data as data
 
-train_size = 9800
-test_size = 200
-image_size = 75
-size = 5
 question_size = 11
 # 6 for one-hot vector of color,
 # 2 for question type,
 # 3 for question subtype
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
-nb_questions = 10
-
 colors = [
-    (0, 0, 255),  # 红
-    (0, 255, 0),  # 绿
-    (255, 0, 0),  # 蓝
-    (0, 156, 255),  # 橙
-    (128, 128, 128),  # 灰
-    (0, 255, 255)  # 黄
+    (0, 0, 255),  # red
+    (0, 255, 0),  # green
+    (255, 0, 0),  # blue
+    (0, 156, 255),  # orange
+    (128, 128, 128),  # grey
+    (0, 255, 255)  # yellow
 ]
 
 
 class SortOfClevr(data.Dataset):
-    def __init__(self, root, train=True):
+    def __init__(self, root, train=True, train_size=9800, test_size=200, image_size=75, object_size=5,
+                 num_questions=10):
         super().__init__()
         self.root = root
+        self.train_size = train_size
+        self.test_size = test_size
+        self.image_size = image_size
+        self.object_size = object_size
+        self.num_questions = num_questions
         if not os.path.exists(root):
             os.makedirs(root)
         if not os.listdir(root) or not os.path.exists(os.path.join(self.root, 'test.pkl')) or \
@@ -51,10 +51,16 @@ class SortOfClevr(data.Dataset):
         return self.data.shape[0]
 
     def generate(self):
-        print('making data...')
-        train_data, train_rel_qst, train_rel_ans, train_norel_qst, train_norel_ans = build_dataset(train_size)
-        test_data, test_rel_qst, test_rel_ans, test_norel_qst, test_norel_ans = build_dataset(test_size)
-        print('saving data...')
+        print('Making data...')
+        train_data, train_rel_qst, train_rel_ans, train_norel_qst, train_norel_ans = build_dataset(self.train_size,
+                                                                                                   self.image_size,
+                                                                                                   self.object_size,
+                                                                                                   self.num_questions)
+        test_data, test_rel_qst, test_rel_ans, test_norel_qst, test_norel_ans = build_dataset(self.test_size,
+                                                                                              self.image_size,
+                                                                                              self.object_size,
+                                                                                              self.num_questions)
+        print('Saving data...')
         with open(os.path.join(self.root, 'train.pkl'), "wb")as f:
             torch.save((train_data, train_rel_qst, train_rel_ans, train_norel_qst, train_norel_ans), f)
         with open(os.path.join(self.root, 'test.pkl'), "wb")as f:
@@ -62,19 +68,19 @@ class SortOfClevr(data.Dataset):
         print("Finish!")
 
 
-def center_generate(objects):
+def center_generate(objects, image_size, object_size):
     while True:
         pas = True
-        center = np.random.randint(0 + size, image_size - size, 2)
+        center = np.random.randint(0 + object_size, image_size - object_size, 2)
         if len(objects) > 0:
             for name, c, shape in objects:
-                if ((center - c) ** 2).sum() < ((size * 2) ** 2):
+                if ((center - c) ** 2).sum() < ((object_size * 2) ** 2):
                     pas = False
         if pas:
             return center
 
 
-def build_dataset(total):
+def build_dataset(total, image_size, object_size, num_questions):
     images = []
     relational_questions = []
     non_relational_questions = []
@@ -84,22 +90,22 @@ def build_dataset(total):
         objects = []
         image = np.ones((image_size, image_size, 3), dtype=np.float32) * 255
         for color_id, color in enumerate(colors):
-            center = center_generate(objects)
+            center = center_generate(objects, image_size, object_size)
             if np.random.random() < 0.5:
-                start = (center[0] - size, center[1] - size)
-                end = (center[0] + size, center[1] + size)
+                start = (center[0] - object_size, center[1] - object_size)
+                end = (center[0] + object_size, center[1] + object_size)
                 cv2.rectangle(image, start, end, color, -1)
                 objects.append((color_id, center, 'r'))
             else:
                 center_ = (center[0], center[1])
-                cv2.circle(image, center_, size, color, -1)
+                cv2.circle(image, center_, object_size, color, -1)
                 objects.append((color_id, center, 'c'))
         image = image / 255.
         image = np.swapaxes(image, 0, 2)
-        image = np.expand_dims(image, 0).repeat(nb_questions, 0)
+        image = np.expand_dims(image, 0).repeat(num_questions, 0)
         images.append(image)
-        """Non-relational questions"""
-        for _ in range(nb_questions):
+        # Non-relational questions
+        for _ in range(num_questions):
             question = np.zeros(question_size)
             color = np.random.randint(0, 5)
             question[color] = 1
@@ -107,31 +113,31 @@ def build_dataset(total):
             subtype = np.random.randint(0, 2)
             question[subtype + 8] = 1
             non_relational_questions.append(question)
-            """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
+            # Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]
             if subtype == 0:
-                """query shape->rectangle/circle"""
+                # query shape->rectangle/circle
                 if objects[color][2] == 'r':
                     answer = 2
                 else:
                     answer = 3
 
             elif subtype == 1:
-                """query horizontal position->yes/no"""
+                # query horizontal position->yes/no
                 if objects[color][1][0] < image_size / 2:
                     answer = 0
                 else:
                     answer = 1
 
             elif subtype == 2:
-                """query vertical position->yes/no"""
+                # query vertical position->yes/no
                 if objects[color][1][1] < image_size / 2:
                     answer = 0
                 else:
                     answer = 1
             non_relational_answers.append(answer)
 
-        """Relational questions"""
-        for i in range(nb_questions):
+        # Relational questions
+        for i in range(num_questions):
             question = np.zeros(question_size)
             color = np.random.randint(0, 5)
             question[color] = 1
@@ -140,7 +146,7 @@ def build_dataset(total):
             question[subtype + 8] = 1
             relational_questions.append(question)
             if subtype == 0:
-                """closest-to->rectangle/circle"""
+                # closest-to->rectangle/circle
                 cur_object = objects[color][1]
                 dist_list = [((cur_object - obj[1]) ** 2).sum() for obj in objects]
                 dist_list[dist_list.index(0)] = 999
@@ -150,7 +156,7 @@ def build_dataset(total):
                 else:
                     answer = 3
             elif subtype == 1:
-                """furthest-from->rectangle/circle"""
+                # furthest-from->rectangle/circle
                 cur_object = objects[color][1]
                 dist_list = [((cur_object - obj[1]) ** 2).sum() for obj in objects]
                 furthest = dist_list.index(max(dist_list))
@@ -159,7 +165,7 @@ def build_dataset(total):
                 else:
                     answer = 3
             elif subtype == 2:
-                """count->1~6"""
+                # count->1~6
                 cur_object = objects[color][2]
                 count = -1
                 for obj in objects:

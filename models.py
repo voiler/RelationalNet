@@ -41,7 +41,7 @@ class ObjectPair(nn.Module):
 
     def forward(self, x, qst):
         batch_size, n_channels, feature_dim, _ = x.shape
-        coord_tensor = self.coord_tensor.repeat(batch_size, 1, 1)
+        coord_tensor = self.coord_tensor.repeat(batch_size, 1, 1)  # copy coordinate
         x = x.view(batch_size, n_channels, feature_dim ** 2).permute(0, 2, 1)
         x = torch.cat([x, coord_tensor], 2)
         qst = qst.reshape(batch_size, 1, 1, 11)
@@ -51,8 +51,8 @@ class ObjectPair(nn.Module):
         x_j = torch.unsqueeze(x, 2)
         x_j = x_j.repeat(1, 1, feature_dim ** 2, 1)
         x = torch.cat([x_i, x_j, qst], 3)
-        x = x.view(-1, (n_channels + 2) * 2 + 11)
-        return x, feature_dim
+        x = x.view(-1, feature_dim ** 4, (n_channels + 2) * 2 + 11)
+        return x
 
 
 class GTheta(nn.Module):
@@ -67,12 +67,11 @@ class GTheta(nn.Module):
         self.g3 = nn.Linear(256, 256)
         self.g4 = nn.Linear(256, 256)
 
-    def forward(self, x, feature_dim):
+    def forward(self, x):
         x = F.relu(self.g1(x))
         x = F.relu(self.g2(x))
         x = F.relu(self.g3(x))
-        x = F.relu(self.g4(x))
-        x = x.view(-1, feature_dim ** 4, 256).sum(1)
+        x = F.relu(self.g4(x)).sum(1)
         return x
 
 
@@ -105,7 +104,7 @@ class RelationalNet(nn.Module):
 
     def forward(self, x, qst):
         x = self.conv(x)
-        x, feature_dim = self.obj_pair(x, qst)
-        x = self.g_theta(x, feature_dim)
+        x = self.obj_pair(x, qst)
+        x = self.g_theta(x)
         x = self.f_phi(x)
         return x
